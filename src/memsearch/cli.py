@@ -85,22 +85,15 @@ def search(
 def watch(paths: tuple[str, ...], provider: str, model: str | None) -> None:
     """Watch PATHS for markdown changes and auto-index."""
     from .core import MemSearch
-    from .watcher import FileWatcher
 
     ms = MemSearch(list(paths), embedding_provider=provider, embedding_model=model)
 
-    def on_change(event_type: str, file_path) -> None:
-        if event_type == "deleted":
-            ms.store.delete_by_source(str(file_path))
-            click.echo(f"Removed: {file_path}")
-        else:
-            n = _run(ms.index_file(file_path))
-            click.echo(f"Indexed {n} chunks: {file_path}")
+    def _on_event(event_type: str, summary: str, file_path) -> None:
+        click.echo(summary)
 
-    watcher = FileWatcher(list(paths), on_change)
     click.echo(f"Watching {len(paths)} path(s) for changes... (Ctrl+C to stop)")
+    watcher = ms.watch(on_event=_on_event)
     try:
-        watcher.start()
         while True:
             import time
             time.sleep(1)
@@ -172,15 +165,11 @@ def stats() -> None:
 @click.confirmation_option(prompt="This will delete all indexed data. Continue?")
 def reset() -> None:
     """Drop all indexed data."""
-    from .cache import EmbeddingCache
     from .store import MilvusStore
 
     store = MilvusStore()
-    cache = EmbeddingCache()
     try:
         store.drop()
-        cleared = cache.clear()
-        click.echo(f"Dropped collection. Cleared {cleared} cached embeddings.")
+        click.echo("Dropped collection.")
     finally:
         store.close()
-        cache.close()

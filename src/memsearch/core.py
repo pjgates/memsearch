@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TYPE_CHECKING
 
-from .cache import EmbeddingCache
+if TYPE_CHECKING:
+    from .watcher import FileWatcher
+
 from .chunker import Chunk, chunk_markdown
 from .embeddings import EmbeddingProvider, get_provider
 from .flush import flush_chunks
@@ -36,8 +38,6 @@ class MemSearch:
     milvus_token:
         Authentication token for Milvus server or Zilliz Cloud.
         Not needed for Milvus Lite (local).
-    cache_path:
-        Path to the SQLite embedding cache.
     """
 
     def __init__(
@@ -48,7 +48,6 @@ class MemSearch:
         embedding_model: str | None = None,
         milvus_uri: str = "~/.memsearch/milvus.db",
         milvus_token: str | None = None,
-        cache_path: str = "~/.memsearch/cache.db",
     ) -> None:
         self._paths = [str(p) for p in (paths or [])]
         self._embedder: EmbeddingProvider = get_provider(
@@ -57,7 +56,6 @@ class MemSearch:
         self._store = MilvusStore(
             uri=milvus_uri, token=milvus_token, dimension=self._embedder.dimension
         )
-        self._cache = EmbeddingCache(db_path=cache_path)
 
     # ------------------------------------------------------------------
     # Indexing
@@ -101,10 +99,12 @@ class MemSearch:
             return 0
 
         if not force:
-            # Skip chunks already in store (by hash)
-            existing_hashes = {c.chunk_hash for c in chunks}
-            # We just re-index all for simplicity; the store upserts by hash
-            pass
+            # Skip chunks whose hash already exists in Milvus
+            all_hashes = [c.chunk_hash for c in chunks]
+            existing = self._store.existing_hashes(all_hashes)
+            chunks = [c for c in chunks if c.chunk_hash not in existing]
+            if not chunks:
+                return 0
 
         return await self._embed_and_store(chunks, doc_type="markdown")
 
@@ -114,40 +114,18 @@ class MemSearch:
         if not chunks:
             return 0
 
-        model = self._embedder.model_name
-        hashes = [c.chunk_hash for c in chunks]
         contents = [c.content for c in chunks]
+        embeddings = await self._embedder.embed(contents)
 
-        # Check cache
-        cached = self._cache.get_batch(hashes, model)
-        to_embed_indices = [i for i, h in enumerate(hashes) if cached[h] is None]
-
-        if to_embed_indices:
-            texts_to_embed = [contents[i] for i in to_embed_indices]
-            new_embeddings = await self._embedder.embed(texts_to_embed)
-            # Populate cache
-            cache_items = [
-                (hashes[to_embed_indices[j]], model, emb)
-                for j, emb in enumerate(new_embeddings)
-            ]
-            self._cache.put_batch(cache_items)
-            # Merge into result
-            for j, idx in enumerate(to_embed_indices):
-                cached[hashes[idx]] = new_embeddings[j]
-
-        # Build store records
         records: list[dict[str, Any]] = []
         for i, chunk in enumerate(chunks):
-            emb = cached[chunk.chunk_hash]
-            if emb is None:
-                continue  # should not happen
             records.append(
                 {
-                    "embedding": emb,
+                    "chunk_hash": chunk.chunk_hash,
+                    "embedding": embeddings[i],
                     "content": chunk.content,
                     "source": chunk.source,
                     "heading": chunk.heading,
-                    "chunk_hash": chunk.chunk_hash,
                     "heading_level": chunk.heading_level,
                     "start_line": chunk.start_line,
                     "end_line": chunk.end_line,
@@ -240,6 +218,60 @@ class MemSearch:
         return summary
 
     # ------------------------------------------------------------------
+    # Watch
+    # ------------------------------------------------------------------
+
+    def watch(
+        self,
+        *,
+        on_event: Callable[[str, str, Path], None] | None = None,
+    ) -> FileWatcher:
+        """Watch configured paths for markdown changes and auto-index.
+
+        Starts a background thread that monitors the filesystem.  When a
+        markdown file is created or modified it is re-indexed automatically;
+        when deleted its chunks are removed from the store.
+
+        Parameters
+        ----------
+        on_event:
+            Optional callback invoked *after* each event is processed.
+            Signature: ``(event_type, action_summary, file_path)``.
+            ``event_type`` is ``"created"``, ``"modified"``, or ``"deleted"``.
+
+        Returns
+        -------
+        FileWatcher
+            The running watcher.  Call ``watcher.stop()`` when done, or
+            use it as a context manager.
+
+        Example
+        -------
+        ::
+
+            ms = MemSearch(paths=["./docs/"])
+            watcher = ms.watch()
+            # ... watcher auto-indexes in background ...
+            watcher.stop()
+        """
+        from .watcher import FileWatcher
+
+        def _on_change(event_type: str, file_path: Path) -> None:
+            if event_type == "deleted":
+                self._store.delete_by_source(str(file_path))
+                summary = f"Removed chunks for {file_path}"
+            else:
+                n = asyncio.run(self.index_file(file_path))
+                summary = f"Indexed {n} chunks from {file_path}"
+            logger.info(summary)
+            if on_event is not None:
+                on_event(event_type, summary, file_path)
+
+        watcher = FileWatcher(self._paths, _on_change)
+        watcher.start()
+        return watcher
+
+    # ------------------------------------------------------------------
     # Utilities
     # ------------------------------------------------------------------
 
@@ -247,14 +279,9 @@ class MemSearch:
     def store(self) -> MilvusStore:
         return self._store
 
-    @property
-    def cache(self) -> EmbeddingCache:
-        return self._cache
-
     def close(self) -> None:
         """Release resources."""
         self._store.close()
-        self._cache.close()
 
     def __enter__(self) -> MemSearch:
         return self

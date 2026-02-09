@@ -20,7 +20,6 @@ def ms(tmp_path: Path):
 
     m = MemSearch(
         milvus_uri=str(tmp_path / "test.db"),
-        cache_path=str(tmp_path / "cache.db"),
     )
     yield m
     m.close()

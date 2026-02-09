@@ -33,8 +33,10 @@ class MilvusStore:
     def _ensure_collection(self) -> None:
         if self._client.has_collection(self.COLLECTION):
             return
-        schema = self._client.create_schema(auto_id=True, enable_dynamic_field=True)
-        schema.add_field(field_name="id", datatype=5, is_primary=True)  # INT64
+        schema = self._client.create_schema(auto_id=False, enable_dynamic_field=True)
+        schema.add_field(
+            field_name="chunk_hash", datatype=21, max_length=64, is_primary=True,
+        )  # VARCHAR primary key
         schema.add_field(
             field_name="embedding",
             datatype=101,  # FLOAT_VECTOR
@@ -43,7 +45,6 @@ class MilvusStore:
         schema.add_field(field_name="content", datatype=21, max_length=65535)  # VARCHAR
         schema.add_field(field_name="source", datatype=21, max_length=1024)  # VARCHAR
         schema.add_field(field_name="heading", datatype=21, max_length=1024)  # VARCHAR
-        schema.add_field(field_name="chunk_hash", datatype=21, max_length=64)  # VARCHAR
         schema.add_field(field_name="heading_level", datatype=5)  # INT64
         schema.add_field(field_name="start_line", datatype=5)  # INT64
         schema.add_field(field_name="end_line", datatype=5)  # INT64
@@ -61,22 +62,27 @@ class MilvusStore:
             index_params=index_params,
         )
 
-    def upsert(self, chunks: list[dict[str, Any]]) -> int:
-        """Insert or update chunks.
+    def existing_hashes(self, hashes: list[str]) -> set[str]:
+        """Return the subset of *hashes* that already exist in the collection."""
+        if not hashes:
+            return set()
+        hash_list = ", ".join(f'"{h}"' for h in hashes)
+        results = self._client.query(
+            collection_name=self.COLLECTION,
+            filter=f"chunk_hash in [{hash_list}]",
+            output_fields=["chunk_hash"],
+        )
+        return {r["chunk_hash"] for r in results}
 
-        Each dict must contain at minimum: ``embedding``, ``content``,
-        ``source``, ``chunk_hash``.  Additional fields are stored as-is.
-        """
+    def upsert(self, chunks: list[dict[str, Any]]) -> int:
+        """Insert or update chunks (keyed by ``chunk_hash`` primary key)."""
         if not chunks:
             return 0
-        # Remove existing chunks with same hashes to achieve upsert
-        hashes = [c["chunk_hash"] for c in chunks]
-        self.delete_by_hashes(hashes)
-        result = self._client.insert(
+        result = self._client.upsert(
             collection_name=self.COLLECTION,
             data=chunks,
         )
-        return result.get("insert_count", len(chunks)) if isinstance(result, dict) else len(chunks)
+        return result.get("upsert_count", len(chunks)) if isinstance(result, dict) else len(chunks)
 
     def search(
         self,
@@ -113,13 +119,12 @@ class MilvusStore:
         )
 
     def delete_by_hashes(self, hashes: list[str]) -> None:
-        """Delete chunks by their content hashes."""
+        """Delete chunks by their content hashes (primary keys)."""
         if not hashes:
             return
-        hash_list = ", ".join(f'"{h}"' for h in hashes)
         self._client.delete(
             collection_name=self.COLLECTION,
-            filter=f"chunk_hash in [{hash_list}]",
+            ids=hashes,
         )
 
     def count(self) -> int:
