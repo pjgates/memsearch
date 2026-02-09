@@ -2,7 +2,7 @@
 
 **Give your AI agents persistent memory.** Semantic memory search for markdown knowledge bases — index your markdown files, then search them using natural language.
 
-🐾 Inspired by **[OpenClaw](https://github.com/openclaw/openclaw)** — the open-source personal AI assistant platform created by Peter Steinberger. OpenClaw connects WhatsApp, Telegram, Slack, and 10+ messaging platforms into a unified AI assistant that runs locally on your machine, with a powerful markdown-based memory system that gives it persistent recall across sessions. memsearch extracts and packages OpenClaw's battle-tested memory layer into a **standalone, reusable library** so *any* AI agent can have the same long-term context retention.
+🐾 Inspired by **[OpenClaw](https://github.com/openclaw/openclaw)** — the open-source personal AI assistant platform that connects WhatsApp, Telegram, Slack, and 10+ messaging platforms into a unified AI assistant running locally on your machine, with a powerful markdown-based memory system that gives it persistent recall across sessions. memsearch extracts and packages OpenClaw's battle-tested memory layer into a **standalone, reusable library** so *any* AI agent can have the same long-term context retention.
 
 > 💡 **Think of it as "OpenClaw's memory, but for everyone."** OpenClaw's memory system — markdown files as source of truth, vector-indexed semantic search, automatic flush consolidation — is one of the best designs for agent memory out there. memsearch makes it available as a pip-installable package, compatible with any agent framework, and backed by [Milvus](https://milvus.io/) vector database (from local Milvus Lite to fully managed Zilliz Cloud).
 
@@ -398,15 +398,6 @@ memsearch is designed to be a drop-in memory backend for projects following [Ope
 | Packaging | Part of OpenClaw monorepo | Standalone `pip install` |
 
 If you're already using OpenClaw's memory directory layout, just point memsearch at it — no migration needed.
-
-## 🛠️ Development
-
-```bash
-git clone https://github.com/zc277584121/memsearch.git
-cd memsearch
-uv sync --dev
-uv run pytest
-```
 
 ## 📄 License
 
