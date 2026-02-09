@@ -48,7 +48,6 @@ class MilvusStore:
         schema.add_field(field_name="heading_level", datatype=5)  # INT64
         schema.add_field(field_name="start_line", datatype=5)  # INT64
         schema.add_field(field_name="end_line", datatype=5)  # INT64
-        schema.add_field(field_name="doc_type", datatype=21, max_length=64)  # VARCHAR
 
         index_params = self._client.prepare_index_params()
         index_params.add_index(
@@ -110,7 +109,7 @@ class MilvusStore:
 
     _QUERY_FIELDS = [
         "content", "source", "heading", "chunk_hash",
-        "heading_level", "start_line", "end_line", "doc_type",
+        "heading_level", "start_line", "end_line",
     ]
 
     def query(self, *, filter_expr: str = "") -> list[dict[str, Any]]:

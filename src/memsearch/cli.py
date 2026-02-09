@@ -42,14 +42,12 @@ def index(paths: tuple[str, ...], provider: str, model: str | None, force: bool)
 @click.option("--top-k", "-k", default=5, help="Number of results.")
 @click.option("--provider", "-p", default="openai", help="Embedding provider.")
 @click.option("--model", "-m", default=None, help="Override embedding model.")
-@click.option("--doc-type", "-t", default=None, help="Filter by doc type.")
 @click.option("--json-output", "-j", is_flag=True, help="Output as JSON.")
 def search(
     query: str,
     top_k: int,
     provider: str,
     model: str | None,
-    doc_type: str | None,
     json_output: bool,
 ) -> None:
     """Search indexed memory for QUERY."""
@@ -57,7 +55,7 @@ def search(
 
     ms = MemSearch(embedding_provider=provider, embedding_model=model)
     try:
-        results = _run(ms.search(query, top_k=top_k, doc_type=doc_type))
+        results = _run(ms.search(query, top_k=top_k))
         if json_output:
             click.echo(json.dumps(results, indent=2, ensure_ascii=False))
         else:
@@ -101,22 +99,6 @@ def watch(paths: tuple[str, ...], provider: str, model: str | None) -> None:
         click.echo("\nStopping watcher.")
     finally:
         watcher.stop()
-        ms.close()
-
-
-@cli.command()
-@click.argument("session_path", type=click.Path(exists=True))
-@click.option("--provider", "-p", default="openai", help="Embedding provider.")
-@click.option("--model", "-m", default=None, help="Override embedding model.")
-def ingest_session(session_path: str, provider: str, model: str | None) -> None:
-    """Ingest a Claude JSONL session log."""
-    from .core import MemSearch
-
-    ms = MemSearch(embedding_provider=provider, embedding_model=model)
-    try:
-        n = _run(ms.index_session(session_path))
-        click.echo(f"Indexed {n} chunks from session log.")
-    finally:
         ms.close()
 
 

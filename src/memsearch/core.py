@@ -15,7 +15,6 @@ from .chunker import Chunk, chunk_markdown
 from .embeddings import EmbeddingProvider, get_provider
 from .flush import flush_chunks
 from .scanner import ScannedFile, scan_paths
-from .session import Session, parse_session_file
 from .store import MilvusStore
 
 logger = logging.getLogger(__name__)
@@ -81,18 +80,6 @@ class MemSearch:
         sf = ScannedFile(path=p, mtime=p.stat().st_mtime, size=p.stat().st_size)
         return await self._index_file(sf)
 
-    async def index_session(self, path: str | Path) -> int:
-        """Parse and index a JSONL session log."""
-        sessions = parse_session_file(path)
-        total = 0
-        for session in sessions:
-            md = session.to_markdown()
-            chunks = chunk_markdown(md, source=str(path))
-            n = await self._embed_and_store(chunks, doc_type="session")
-            total += n
-        logger.info("Indexed %d chunks from session %s", total, path)
-        return total
-
     async def _index_file(self, f: ScannedFile, *, force: bool = False) -> int:
         text = f.path.read_text(encoding="utf-8")
         chunks = chunk_markdown(text, source=str(f.path))
@@ -107,11 +94,9 @@ class MemSearch:
             if not chunks:
                 return 0
 
-        return await self._embed_and_store(chunks, doc_type="markdown")
+        return await self._embed_and_store(chunks)
 
-    async def _embed_and_store(
-        self, chunks: list[Chunk], *, doc_type: str = "markdown"
-    ) -> int:
+    async def _embed_and_store(self, chunks: list[Chunk]) -> int:
         if not chunks:
             return 0
 
@@ -130,7 +115,6 @@ class MemSearch:
                     "heading_level": chunk.heading_level,
                     "start_line": chunk.start_line,
                     "end_line": chunk.end_line,
-                    "doc_type": doc_type,
                 }
             )
 
@@ -145,7 +129,6 @@ class MemSearch:
         query: str,
         *,
         top_k: int = 10,
-        doc_type: str | None = None,
     ) -> list[dict[str, Any]]:
         """Semantic search across indexed chunks.
 
@@ -155,8 +138,6 @@ class MemSearch:
             Natural-language query.
         top_k:
             Maximum results to return.
-        doc_type:
-            Filter by document type (``"markdown"``, ``"session"``).
 
         Returns
         -------
@@ -165,10 +146,7 @@ class MemSearch:
             ``score``, and other metadata.
         """
         embeddings = await self._embedder.embed([query])
-        filter_expr = f'doc_type == "{doc_type}"' if doc_type else ""
-        return self._store.search(
-            embeddings[0], top_k=top_k, filter_expr=filter_expr
-        )
+        return self._store.search(embeddings[0], top_k=top_k)
 
     # ------------------------------------------------------------------
     # Flush (compress memories)

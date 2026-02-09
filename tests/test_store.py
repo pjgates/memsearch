@@ -26,7 +26,6 @@ def test_upsert_and_search(store: MilvusStore):
             "heading_level": 1,
             "start_line": 1,
             "end_line": 5,
-            "doc_type": "markdown",
         },
         {
             "embedding": [0.0, 1.0, 0.0, 0.0],
@@ -37,7 +36,6 @@ def test_upsert_and_search(store: MilvusStore):
             "heading_level": 1,
             "start_line": 6,
             "end_line": 10,
-            "doc_type": "markdown",
         },
     ]
     n = store.upsert(chunks)
@@ -59,7 +57,6 @@ def test_delete_by_source(store: MilvusStore):
             "heading_level": 0,
             "start_line": 1,
             "end_line": 1,
-            "doc_type": "markdown",
         },
         {
             "embedding": [0.0, 1.0, 0.0, 0.0],
@@ -70,7 +67,6 @@ def test_delete_by_source(store: MilvusStore):
             "heading_level": 0,
             "start_line": 1,
             "end_line": 1,
-            "doc_type": "markdown",
         },
     ]
     store.upsert(chunks)
