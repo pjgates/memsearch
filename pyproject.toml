@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "memsearch"
+version = "0.1.0"
+description = "Semantic memory search for markdown knowledge bases"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "pymilvus[milvus_lite]>=2.5.0",
+    "click>=8.1",
+    "watchdog>=4.0",
+    "setuptools<75",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0"]
+google = ["google-genai>=1.0"]
+voyage = ["voyageai>=0.3"]
+ollama = ["ollama>=0.4"]
+local = ["sentence-transformers>=3.0"]
+anthropic = ["anthropic>=0.40"]
+all = ["memsearch[openai,google,voyage,ollama,local,anthropic]"]
+
+[project.scripts]
+memsearch = "memsearch.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/memsearch"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
