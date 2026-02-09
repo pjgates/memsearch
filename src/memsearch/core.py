@@ -38,6 +38,9 @@ class MemSearch:
     milvus_token:
         Authentication token for Milvus server or Zilliz Cloud.
         Not needed for Milvus Lite (local).
+    collection:
+        Milvus collection name.  Use different names to isolate
+        agents sharing the same Milvus server.
     """
 
     def __init__(
@@ -48,13 +51,15 @@ class MemSearch:
         embedding_model: str | None = None,
         milvus_uri: str = "~/.memsearch/milvus.db",
         milvus_token: str | None = None,
+        collection: str = "memsearch_chunks",
     ) -> None:
         self._paths = [str(p) for p in (paths or [])]
         self._embedder: EmbeddingProvider = get_provider(
             embedding_provider, model=embedding_model
         )
         self._store = MilvusStore(
-            uri=milvus_uri, token=milvus_token, dimension=self._embedder.dimension
+            uri=milvus_uri, token=milvus_token, collection=collection,
+            dimension=self._embedder.dimension,
         )
 
     # ------------------------------------------------------------------

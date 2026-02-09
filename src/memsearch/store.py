@@ -9,13 +9,14 @@ from typing import Any
 class MilvusStore:
     """Thin wrapper around ``pymilvus.MilvusClient`` for chunk storage."""
 
-    COLLECTION = "memsearch_chunks"
+    DEFAULT_COLLECTION = "memsearch_chunks"
 
     def __init__(
         self,
         uri: str = "~/.memsearch/milvus.db",
         *,
         token: str | None = None,
+        collection: str = DEFAULT_COLLECTION,
         dimension: int = 1536,
     ) -> None:
         from pymilvus import MilvusClient
@@ -27,11 +28,12 @@ class MilvusStore:
         if token:
             connect_kwargs["token"] = token
         self._client = MilvusClient(**connect_kwargs)
+        self._collection = collection
         self._dimension = dimension
         self._ensure_collection()
 
     def _ensure_collection(self) -> None:
-        if self._client.has_collection(self.COLLECTION):
+        if self._client.has_collection(self._collection):
             return
         schema = self._client.create_schema(auto_id=False, enable_dynamic_field=True)
         schema.add_field(
@@ -56,7 +58,7 @@ class MilvusStore:
             metric_type="COSINE",
         )
         self._client.create_collection(
-            collection_name=self.COLLECTION,
+            collection_name=self._collection,
             schema=schema,
             index_params=index_params,
         )
@@ -67,7 +69,7 @@ class MilvusStore:
             return set()
         hash_list = ", ".join(f'"{h}"' for h in hashes)
         results = self._client.query(
-            collection_name=self.COLLECTION,
+            collection_name=self._collection,
             filter=f"chunk_hash in [{hash_list}]",
             output_fields=["chunk_hash"],
         )
@@ -78,7 +80,7 @@ class MilvusStore:
         if not chunks:
             return 0
         result = self._client.upsert(
-            collection_name=self.COLLECTION,
+            collection_name=self._collection,
             data=chunks,
         )
         return result.get("upsert_count", len(chunks)) if isinstance(result, dict) else len(chunks)
@@ -92,7 +94,7 @@ class MilvusStore:
     ) -> list[dict[str, Any]]:
         """Semantic search returning top-k results."""
         kwargs: dict[str, Any] = {
-            "collection_name": self.COLLECTION,
+            "collection_name": self._collection,
             "data": [query_embedding],
             "limit": top_k,
             "output_fields": self._QUERY_FIELDS,
@@ -115,7 +117,7 @@ class MilvusStore:
     def query(self, *, filter_expr: str = "") -> list[dict[str, Any]]:
         """Retrieve chunks by scalar filter (no vector needed)."""
         kwargs: dict[str, Any] = {
-            "collection_name": self.COLLECTION,
+            "collection_name": self._collection,
             "output_fields": self._QUERY_FIELDS,
             "filter": filter_expr if filter_expr else 'chunk_hash != ""',
         }
@@ -124,7 +126,7 @@ class MilvusStore:
     def delete_by_source(self, source: str) -> None:
         """Delete all chunks from a given source file."""
         self._client.delete(
-            collection_name=self.COLLECTION,
+            collection_name=self._collection,
             filter=f'source == "{source}"',
         )
 
@@ -133,19 +135,19 @@ class MilvusStore:
         if not hashes:
             return
         self._client.delete(
-            collection_name=self.COLLECTION,
+            collection_name=self._collection,
             ids=hashes,
         )
 
     def count(self) -> int:
         """Return total number of stored chunks."""
-        stats = self._client.get_collection_stats(self.COLLECTION)
+        stats = self._client.get_collection_stats(self._collection)
         return stats.get("row_count", 0)
 
     def drop(self) -> None:
         """Drop the entire collection."""
-        if self._client.has_collection(self.COLLECTION):
-            self._client.drop_collection(self.COLLECTION)
+        if self._client.has_collection(self._collection):
+            self._client.drop_collection(self._collection)
 
     def close(self) -> None:
         self._client.close()
