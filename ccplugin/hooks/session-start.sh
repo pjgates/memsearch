@@ -24,12 +24,11 @@ if [ -z "${OPENAI_API_KEY:-}" ]; then
   MEMORY_FILE="$MEMORY_DIR/$TODAY.md"
   echo -e "\n## Session $NOW\n" >> "$MEMORY_FILE"
 
-  warn="**memsearch memory plugin** requires \`OPENAI_API_KEY\` to enable semantic memory search.\n\n"
-  warn+="1. Get a key at https://platform.openai.com/api-keys\n"
-  warn+="2. Export it: \`export OPENAI_API_KEY=sk-...\`\n"
-  warn+="\nMemory recording is active (writing to .md files), but search and indexing are disabled until the key is set."
+  warn="[memsearch] OPENAI_API_KEY not set — memory search disabled. "
+  warn+="Get a key: https://platform.openai.com/api-keys  "
+  warn+="Then: export OPENAI_API_KEY=sk-..."
   json_warn=$(printf '%s' "$warn" | jq -Rs .)
-  echo "{\"hookSpecificOutput\": {\"hookEventName\": \"SessionStart\", \"additionalContext\": $json_warn}}"
+  echo "{\"systemMessage\": $json_warn}"
   exit 0
 fi
 
