@@ -27,6 +27,16 @@ _PROVIDERS: dict[str, tuple[str, str]] = {
     "local": ("memsearch.embeddings.local", "LocalEmbedding"),
 }
 
+# Default model for each provider (mirrors the __init__ defaults in each class).
+# Kept here so callers can resolve the effective model without importing heavy deps.
+DEFAULT_MODELS: dict[str, str] = {
+    "openai": "text-embedding-3-small",
+    "google": "gemini-embedding-001",
+    "voyage": "voyage-3-lite",
+    "ollama": "nomic-embed-text",
+    "local": "all-MiniLM-L6-v2",
+}
+
 _INSTALL_HINTS: dict[str, str] = {
     "openai": 'pip install memsearch  (or: uv add memsearch)',
     "google": 'pip install "memsearch[google]"  (or: uv add "memsearch[google]")',
@@ -75,4 +85,4 @@ def get_provider(
     return cls(**kwargs)
 
 
-__all__ = ["EmbeddingProvider", "get_provider"]
+__all__ = ["DEFAULT_MODELS", "EmbeddingProvider", "get_provider"]

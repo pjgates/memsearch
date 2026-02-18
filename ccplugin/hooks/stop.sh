@@ -11,9 +11,19 @@ if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
   exit 0
 fi
 
-# Skip summarization when OPENAI_API_KEY is missing — the session would only
-# contain the "please set your API key" exchange, which is not useful memory.
-if [ -z "${OPENAI_API_KEY:-}" ]; then
+# Skip summarization when the required API key is missing — embedding/search
+# would fail, and the session likely only contains the "key not set" warning.
+_required_env_var() {
+  case "$1" in
+    openai) echo "OPENAI_API_KEY" ;;
+    google) echo "GOOGLE_API_KEY" ;;
+    voyage) echo "VOYAGE_API_KEY" ;;
+    *) echo "" ;;  # ollama, local — no API key needed
+  esac
+}
+_PROVIDER=$($MEMSEARCH_CMD config get embedding.provider 2>/dev/null || echo "openai")
+_REQ_KEY=$(_required_env_var "$_PROVIDER")
+if [ -n "$_REQ_KEY" ] && [ -z "${!_REQ_KEY:-}" ]; then
   echo '{}'
   exit 0
 fi

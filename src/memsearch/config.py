@@ -134,7 +134,15 @@ def resolve_config(cli_overrides: dict[str, Any] | None = None) -> MemSearchConf
     result = deep_merge(result, load_config_file(PROJECT_CONFIG_PATH))
     if cli_overrides:
         result = deep_merge(result, cli_overrides)
-    return _dict_to_config(result)
+    cfg = _dict_to_config(result)
+
+    # Fill in the provider's default model when model is empty
+    if not cfg.embedding.model:
+        from .embeddings import DEFAULT_MODELS
+
+        cfg.embedding.model = DEFAULT_MODELS.get(cfg.embedding.provider, "")
+
+    return cfg
 
 
 def save_config(cfg_dict: dict[str, Any], path: Path | str) -> None:

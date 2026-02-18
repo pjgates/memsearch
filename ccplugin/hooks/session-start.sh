@@ -15,26 +15,35 @@ if [ -z "$MEMSEARCH_CMD" ]; then
   _detect_memsearch
 fi
 
-# Guard: OpenAI API key is required for the default embedding provider.
-# If missing, write session heading but skip watch/search and warn the user.
-if [ -z "${OPENAI_API_KEY:-}" ]; then
-  ensure_memory_dir
-  TODAY=$(date +%Y-%m-%d)
-  NOW=$(date +%H:%M)
-  MEMORY_FILE="$MEMORY_DIR/$TODAY.md"
-  echo -e "\n## Session $NOW\n" >> "$MEMORY_FILE"
-
-  warn="[memsearch] OPENAI_API_KEY not set — memory search disabled. "
-  warn+="Get a key: https://platform.openai.com/api-keys  "
-  warn+="Then: export OPENAI_API_KEY=sk-..."
-  json_warn=$(printf '%s' "$warn" | jq -Rs .)
-  echo "{\"systemMessage\": $json_warn}"
-  exit 0
+# Read resolved config for status display
+PROVIDER="openai"; MODEL=""; MILVUS_URI=""
+if [ -n "$MEMSEARCH_CMD" ]; then
+  PROVIDER=$($MEMSEARCH_CMD config get embedding.provider 2>/dev/null || echo "openai")
+  MODEL=$($MEMSEARCH_CMD config get embedding.model 2>/dev/null || echo "")
+  MILVUS_URI=$($MEMSEARCH_CMD config get milvus.uri 2>/dev/null || echo "")
 fi
 
-# Start memsearch watch as a singleton background process.
-# This is the ONLY place indexing is managed — all other hooks just write .md files.
-start_watch
+# Determine required API key for the configured provider
+_required_env_var() {
+  case "$1" in
+    openai) echo "OPENAI_API_KEY" ;;
+    google) echo "GOOGLE_API_KEY" ;;
+    voyage) echo "VOYAGE_API_KEY" ;;
+    *) echo "" ;;  # ollama, local — no API key needed
+  esac
+}
+REQUIRED_KEY=$(_required_env_var "$PROVIDER")
+
+KEY_MISSING=false
+if [ -n "$REQUIRED_KEY" ] && [ -z "${!REQUIRED_KEY:-}" ]; then
+  KEY_MISSING=true
+fi
+
+# Build status line: provider/model | milvus | optional error
+status="[memsearch] embedding: ${PROVIDER}/${MODEL:-unknown} | milvus: ${MILVUS_URI:-unknown}"
+if [ "$KEY_MISSING" = true ]; then
+  status+=" | ERROR: ${REQUIRED_KEY} not set — memory search disabled"
+fi
 
 # Write session heading to today's memory file
 ensure_memory_dir
@@ -43,9 +52,23 @@ NOW=$(date +%H:%M)
 MEMORY_FILE="$MEMORY_DIR/$TODAY.md"
 echo -e "\n## Session $NOW\n" >> "$MEMORY_FILE"
 
+# If API key is missing, show status and exit early (watch/search would fail)
+if [ "$KEY_MISSING" = true ]; then
+  json_status=$(printf '%s' "$status" | jq -Rs .)
+  echo "{\"systemMessage\": $json_status}"
+  exit 0
+fi
+
+# Start memsearch watch as a singleton background process.
+# This is the ONLY place indexing is managed — all other hooks just write .md files.
+start_watch
+
+# Always include status in systemMessage
+json_status=$(printf '%s' "$status" | jq -Rs .)
+
 # If memory dir has no .md files (other than the one we just created), nothing to inject
 if [ ! -d "$MEMORY_DIR" ] || ! ls "$MEMORY_DIR"/*.md &>/dev/null; then
-  echo '{}'
+  echo "{\"systemMessage\": $json_status}"
   exit 0
 fi
 
@@ -72,7 +95,7 @@ fi
 
 if [ -n "$context" ]; then
   json_context=$(printf '%s' "$context" | jq -Rs .)
-  echo "{\"hookSpecificOutput\": {\"hookEventName\": \"SessionStart\", \"additionalContext\": $json_context}}"
+  echo "{\"systemMessage\": $json_status, \"hookSpecificOutput\": {\"hookEventName\": \"SessionStart\", \"additionalContext\": $json_context}}"
 else
-  echo '{}'
+  echo "{\"systemMessage\": $json_status}"
 fi
