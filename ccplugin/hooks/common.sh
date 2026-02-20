@@ -137,6 +137,22 @@ start_watch() {
   # Always restart: ensures latest config (milvus_uri, etc.) is used
   stop_watch
 
-  nohup $MEMSEARCH_CMD watch "$MEMORY_DIR" &>/dev/null &
+  # Build watch paths: session memory dir + extra from MEMSEARCH_WATCH_PATHS env var
+  # Set MEMSEARCH_WATCH_PATHS as comma-separated relative dirs in settings.local.json "env"
+  # e.g. "memory,knowledge,notes"
+  local PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-.}"
+  local WATCH_PATHS=("$MEMORY_DIR")
+
+  if [ -n "${MEMSEARCH_WATCH_PATHS:-}" ]; then
+    IFS=',' read -ra EXTRA <<< "$MEMSEARCH_WATCH_PATHS"
+    for rel in "${EXTRA[@]}"; do
+      rel=$(echo "$rel" | xargs)  # trim whitespace
+      [ -z "$rel" ] && continue
+      local full="$PROJECT_ROOT/$rel"
+      [[ -d "$full" && "$full" != "$MEMORY_DIR" ]] && WATCH_PATHS+=("$full")
+    done
+  fi
+
+  nohup $MEMSEARCH_CMD watch "${WATCH_PATHS[@]}" &>/dev/null &
   echo $! > "$WATCH_PIDFILE"
 }
