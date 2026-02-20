@@ -54,10 +54,14 @@ class MemSearch:
         collection: str = "memsearch_chunks",
         max_chunk_size: int = 1500,
         overlap_lines: int = 2,
+        document_prefix: str = "",
+        query_prefix: str = "",
     ) -> None:
         self._paths = [str(p) for p in (paths or [])]
         self._max_chunk_size = max_chunk_size
         self._overlap_lines = overlap_lines
+        self._document_prefix = document_prefix
+        self._query_prefix = query_prefix
         self._embedder: EmbeddingProvider = get_provider(
             embedding_provider, model=embedding_model
         )
@@ -142,7 +146,7 @@ class MemSearch:
             return 0
 
         model = self._embedder.model_name
-        contents = [c.content for c in chunks]
+        contents = [self._document_prefix + c.content for c in chunks]
         embeddings = await self._embedder.embed(contents)
 
         records: list[dict[str, Any]] = []
@@ -191,7 +195,7 @@ class MemSearch:
             Each dict contains ``content``, ``source``, ``heading``,
             ``score``, and other metadata.
         """
-        embeddings = await self._embedder.embed([query])
+        embeddings = await self._embedder.embed([self._query_prefix + query])
         return self._store.search(embeddings[0], query_text=query, top_k=top_k)
 
     # ------------------------------------------------------------------

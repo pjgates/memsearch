@@ -69,6 +69,8 @@ def _cfg_to_memsearch_kwargs(cfg: MemSearchConfig) -> dict:
         "collection": cfg.milvus.collection,
         "max_chunk_size": cfg.chunking.max_chunk_size,
         "overlap_lines": cfg.chunking.overlap_lines,
+        "document_prefix": cfg.embedding.document_prefix,
+        "query_prefix": cfg.embedding.query_prefix,
     }
 
 

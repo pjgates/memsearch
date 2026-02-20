@@ -16,10 +16,13 @@ done
 MEMSEARCH_DIR="${CLAUDE_PROJECT_DIR:-.}/.memsearch"
 MEMORY_DIR="$MEMSEARCH_DIR/memory"
 
-# Find memsearch binary: prefer PATH, fallback to uvx
+# Find memsearch binary: prefer local fork, then PATH, fallback to uvx
+MEMSEARCH_LOCAL_FORK="$HOME/Code/memsearch"
 _detect_memsearch() {
   MEMSEARCH_CMD=""
-  if command -v memsearch &>/dev/null; then
+  if [ -d "$MEMSEARCH_LOCAL_FORK/src/memsearch" ]; then
+    MEMSEARCH_CMD="uv run --project $MEMSEARCH_LOCAL_FORK memsearch"
+  elif command -v memsearch &>/dev/null; then
     MEMSEARCH_CMD="memsearch"
   elif command -v uvx &>/dev/null; then
     MEMSEARCH_CMD="uvx memsearch"

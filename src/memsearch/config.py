@@ -39,6 +39,8 @@ class MilvusConfig:
 class EmbeddingConfig:
     provider: str = "openai"
     model: str = ""
+    document_prefix: str = ""
+    query_prefix: str = ""
 
 
 @dataclass
