@@ -88,11 +88,28 @@ fi
 
 context=""
 
-# Find the 2 most recent daily log files (sorted by filename descending)
+# Inject project memory from .claude/memory/ in the project root.
+# These are curated, committed memory files (portable across devices).
+PROJECT_MEMORY_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/memory"
+if [ -d "$PROJECT_MEMORY_DIR" ]; then
+  project_memory_files=$(ls -1 "$PROJECT_MEMORY_DIR"/*.md 2>/dev/null || true)
+  if [ -n "$project_memory_files" ]; then
+    context="# Project Memory\n\n"
+    for f in $project_memory_files; do
+      basename_f=$(basename "$f")
+      content=$(cat "$f" 2>/dev/null || true)
+      if [ -n "$content" ]; then
+        context+="## $basename_f\n$content\n\n"
+      fi
+    done
+  fi
+fi
+
+# Find the 2 most recent daily session log files (sorted by filename descending)
 recent_files=$(ls -1 "$MEMORY_DIR"/*.md 2>/dev/null | sort -r | head -2)
 
 if [ -n "$recent_files" ]; then
-  context="# Recent Memory\n\n"
+  context+="# Recent Sessions\n\n"
   for f in $recent_files; do
     basename_f=$(basename "$f")
     # Read last ~30 lines from each file
