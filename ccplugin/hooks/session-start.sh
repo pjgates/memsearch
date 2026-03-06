@@ -64,6 +64,20 @@ ensure_memory_dir
 TODAY=$(date +%Y-%m-%d)
 NOW=$(date +%H:%M)
 MEMORY_FILE="$MEMORY_DIR/$TODAY.md"
+
+# Remove all trailing orphaned session headings (no content written after them).
+# Repeated sessions that produced no meaningful notes leave stacked empty headings.
+if [ -f "$MEMORY_FILE" ]; then
+  python3 -c "
+import re, sys
+p = sys.argv[1]
+with open(p) as f: c = f.read()
+c2 = re.sub(r'(\n## Session \d{2}:\d{2}\s*\n)+\Z', '\n', c)
+if c2 != c:
+    with open(p, 'w') as f: f.write(c2)
+" "$MEMORY_FILE" 2>/dev/null || true
+fi
+
 echo -e "\n## Session $NOW\n" >> "$MEMORY_FILE"
 
 # If API key is missing, show status and exit early (watch/search would fail)

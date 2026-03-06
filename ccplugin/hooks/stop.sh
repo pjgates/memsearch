@@ -100,6 +100,12 @@ if [ -z "$SUMMARY" ]; then
   SUMMARY="$PARSED"
 fi
 
+# Skip writing if Haiku produced a placeholder for an empty/init-only session
+if printf '%s' "$SUMMARY" | grep -qiE '(no summary|no session activity|no substantive|startup.*(init|phase)|short or empty turn|awaiting (user input|task)|ready for (user input|task)|session init|session (started|initialized).*hook|empty transcript|no .* work|initialization (only|complete)|no meaningful|no actionable)'; then
+  echo '{}'
+  exit 0
+fi
+
 # Append as a sub-heading under the session heading written by SessionStart
 # Include HTML comment anchor for progressive disclosure (L3 transcript lookup)
 {
